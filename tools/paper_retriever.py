@@ -32,7 +32,7 @@ def retrieve_papers(state: EcoWatchState) -> dict:
             results["metadatas"][0],
             results["distances"][0],
         ):
-            relevance = round(1 - dist, 2)
+            relevance = round(max(0, 1 - dist), 2)
             paper = {
                 "title": meta.get("title", ""),
                 "authors": meta.get("authors", ""),
