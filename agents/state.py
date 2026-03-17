@@ -14,7 +14,7 @@ class EcoWatchState(TypedDict):
     search_queries: List[str]
     
     # Nodo 1 — cerca notizie
-    articles: Annotated[List[NewsArticle], operator.add]
+    articles: Annotated[List[NewsArticle], operator.add]  #operator add fa appen
     
     # Nodo 2 — analisi bias
     bias_analyses: Annotated[List[dict], operator.add]
