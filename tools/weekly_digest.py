@@ -268,8 +268,7 @@ def _generate_html(content: str, ranked_articles: list) -> str:
     .header h1 {{ color: #d8f3dc; font-size: 22px; font-weight: normal; letter-spacing: 3px; text-transform: uppercase; margin-top: 8px; }}
     .header .subtitle {{ color: #95d5b2; font-size: 14px; margin-top: 4px; }}
     .header .date {{ color: #74c69d; font-size: 13px; margin-top: 8px; }}
-    .stats-bar {{ background: #2d6a4f; padding: 16px 48px; display: flex; gap: 32px; }}
-    .stat {{ color: white; font-size: 13px; font-family: Arial, sans-serif; }}
+    .stats-bar {{ background: #2d6a4f; padding: 20px 48px; display: flex; justify-content: space-around; }}    .stat {{ color: white; font-size: 13px; font-family: Arial, sans-serif; }}
     .stat span {{ font-size: 20px; font-weight: bold; display: block; }}
     .content {{ padding: 48px; }}
     .section-title {{ color: #1b4332; font-size: 20px; border-bottom: 2px solid #d8f3dc; padding-bottom: 8px; margin: 32px 0 16px; }}
@@ -289,10 +288,10 @@ def _generate_html(content: str, ranked_articles: list) -> str:
       <div class="date">{date}</div>
     </div>
 
-    <div class="stats-bar">
-      <div class="stat"><span>{len(ranked_articles)}</span>Articles analyzed</div>
-      <div class="stat"><span>3</span>Thematic sections</div>
-      <div class="stat"><span>1</span>Time per week</div>
+    <div class="stats-bar" style="justify-content: space-around;">
+      <div class="stat" style="text-align: center;"><span>{len(ranked_articles)}</span>Articles analyzed</div>
+      <div class="stat" style="text-align: center;"><span>3</span>Thematic sections</div>
+      <div class="stat" style="text-align: center;"><span>1</span>Time per week</div>
     </div>
 
     <div class="content">
