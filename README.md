@@ -1,23 +1,23 @@
 # 🌱 EcoWatch Agent
 
-Intelligence ambientale settimanale — ricevi ogni lunedì una newsletter su clima, politica ambientale e ricerca scientifica.
+Weekly environmental intelligence — receive every Monday a newsletter on climate change, environmental policy, and scientific research.
 
 ## Stack
-- **LangGraph** — orchestrazione agente
-- **Groq** — LLM gratuito (LLaMA 3.3)
-- **Tavily** — ricerca notizie in tempo reale
-- **ChromaDB** — database paper scientifici
-- **GitHub Actions** — scheduler automatico
+- **LangGraph** — agent orchestration
+- **Groq** — free LLM (LLaMA 3.3)
+- **Tavily** — real-time news search
+- **ChromaDB** — scientific papers database
+- **GitHub Actions** — automatic scheduler
 
 ## Setup
 
-### 1. Clona il repo
+### 1. Clone the repo
 ```bash
-git clone https://github.com/tuonome/ecowatch-agent.git
+git clone https://github.com/marcoBorto2921/ecowatch-agent.git
 cd ecowatch-agent
 ```
 
-### 2. Crea il virtual environment
+### 2. Create the virtual environment
 ```bash
 python -m venv .venv
 .venv\Scripts\activate        # Windows
@@ -25,58 +25,59 @@ source .venv/bin/activate     # Mac/Linux
 pip install -r requirements.txt
 ```
 
-### 3. Configura le API keys
+### 3. Configure API keys
 ```bash
 cp .env.example .env
-# Modifica .env con le tue chiavi
+# Fill in your keys
 ```
 
-API keys necessarie:
-- **Groq**: [console.groq.com](https://console.groq.com) — gratuito
-- **Tavily**: [tavily.com](https://tavily.com) — gratuito (1000 req/mese)
+Required API keys:
+- **Groq**: [console.groq.com](https://console.groq.com) — free
+- **Tavily**: [tavily.com](https://tavily.com) — free (1000 req/month)
 - **Gmail App Password**: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
 
-### 4. Aggiungi paper scientifici
+### 4. Add scientific papers
 ```bash
-# Modifica data/papers.json con i tuoi paper
+# Edit data/papers.json with your papers
 python add_papers.py
 ```
 
-## Utilizzo
+## Usage
 
-### Briefing giornaliero (manuale)
+### Daily briefing (manual)
 ```bash
 python main.py
 ```
 
-### Weekly digest (manuale)
+### Weekly digest (manual)
 ```bash
 python scheduler.py
 ```
 
-### Weekly digest (automatica)
-La GitHub Action invia la newsletter ogni **lunedì alle 9:00** (ora italiana) automaticamente.
+### Weekly digest (automatic)
+The GitHub Action sends the newsletter every **Monday at 8:00 UTC (9:00 Italian time)** automatically.
 
-Per eseguirla manualmente: GitHub → Actions → EcoWatch Weekly Digest → Run workflow.
+To run it manually: GitHub → Actions → EcoWatch Weekly Digest → Run workflow.
 
-## Struttura
+## Project Structure
 ```
 ecowatch-agent/
 ├── agents/
-│   ├── state.py          # Stato LangGraph
-│   └── graph.py          # Grafo agente
+│   ├── state.py               # LangGraph state
+│   └── graph.py               # Agent graph
 ├── tools/
-│   ├── news_search.py    # Ricerca notizie (Tavily)
-│   ├── bias_analyzer.py  # Analisi bias (Groq)
-│   ├── paper_retriever.py # Database paper (ChromaDB)
-│   ├── briefing_generator.py # Genera briefing
-│   ├── weekly_digest.py  # Newsletter settimanale
-│   └── email_sender.py   # Invio email (Gmail)
+│   ├── news_search.py         # News search (Tavily)
+│   ├── bias_analyzer.py       # Bias analysis (Groq)
+│   ├── paper_retriever.py     # Paper retrieval (ChromaDB)
+│   ├── briefing_generator.py  # Briefing generation
+│   ├── weekly_digest.py       # Weekly newsletter
+│   └── email_sender.py        # Email sending (Gmail)
 ├── data/
-│   └── papers.json       # Paper scientifici
+│   └── papers.json            # Scientific papers
 ├── .github/
 │   └── workflows/
-│       └── weekly_digest.yml # GitHub Actions
+│       └── weekly_digest.yml  # GitHub Actions scheduler
 ├── .env.example
 └── main.py
+```
 ```
