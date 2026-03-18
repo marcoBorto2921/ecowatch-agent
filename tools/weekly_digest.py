@@ -115,7 +115,7 @@ def _search_news() -> list:
 
     for query in QUERIES:
         try:
-            results = client.search(query=query, max_results=2)
+            results = client.search(query=query, max_results=2, days=7)
             for r in results.get("results", []):
                 if r["url"] not in seen_urls:
                     seen_urls.add(r["url"])
