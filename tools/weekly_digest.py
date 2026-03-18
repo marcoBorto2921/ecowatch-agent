@@ -108,6 +108,19 @@ def generate_weekly_digest() -> str:
     return content
 
 
+PAYWALL_DOMAINS = [
+    "ft.com",
+    "bloomberg.com",
+    "wsj.com",
+    "economist.com",
+    "thetimes.co.uk",
+    "telegraph.co.uk",
+    "technologyreview.com",
+    "hbr.org",
+    "nature.com",
+    "science.org",
+]
+
 def _search_news() -> list:
     client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     articles = []
@@ -115,21 +128,27 @@ def _search_news() -> list:
 
     for query in QUERIES:
         try:
-            results = client.search(query=query, max_results=2, days=7)
+            results = client.search(query=query, max_results=3, days=7)
             for r in results.get("results", []):
+                domain = r["url"].split("/")[2].replace("www.", "")
+                
+                # Salta paywall
+                if any(pw in domain for pw in PAYWALL_DOMAINS):
+                    print(f"  ⚠ Skipping paywall: {domain}")
+                    continue
+                
                 if r["url"] not in seen_urls:
                     seen_urls.add(r["url"])
                     articles.append({
                         "title": r["title"],
                         "url": r["url"],
                         "content": r["content"][:500],
-                        "source": r["url"].split("/")[2],
+                        "source": domain,
                     })
         except Exception as e:
             print(f"  ✗ Error query '{query}': {e}")
 
     return articles
-
 
 def _rank_articles(articles: list) -> list:
     llm = ChatGroq(
