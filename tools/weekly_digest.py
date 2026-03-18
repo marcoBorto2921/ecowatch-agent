@@ -1,5 +1,6 @@
 import os
-from datetime import datetime, timedelta
+import json
+from datetime import datetime
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -9,74 +10,94 @@ import chromadb
 load_dotenv()
 
 QUERIES = [
-    # Clima e ambiente
     "climate change news this week",
     "environmental news today",
-    # Politica ambientale
     "EU environmental policy this week",
     "italy environmental policy news",
-    # Scientifica
     "climate science research 2026",
 ]
 
 PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """Sei il redattore di EcoWatch Weekly, una newsletter ambientale professionale.
-Produci una digest settimanale in italiano, chiara e basata su evidenze.
+    ("system", """You are the editor of EcoWatch Weekly, a professional environmental newsletter.
+Produce a weekly digest in English, clear and evidence-based.
 
-Struttura esattamente così:
+Structure exactly like this:
 
-## 🌍 La Settimana in Sintesi
-(3-4 frasi sui temi principali della settimana)
+## 🌍 Week in Review
+(3-4 sentences on the main themes of the week)
 
-## 📰 Notizie Clima e Ambiente
-(le 3 notizie più importanti con riassunto e fonte)
+## 🌐 Europe & World
+(top 3 most important international and European news with summary and source)
 
-## 🏛️ Politica Ambientale
-(aggiornamenti su EU e Italia)
+## 🇮🇹 Italy
+(environmental and policy updates from Italy)
 
-## 🔬 Dalla Scienza
-(paper e ricerche rilevanti della settimana)
+## 🔬 From Science
+(relevant papers and research this week)
 
-## 💡 Da Tenere d'Occhio
-(temi emergenti per la prossima settimana)
+## 💡 Watch This Space
+(emerging topics to follow next week)
 
-Stile: autorevole, preciso, accessibile."""),
-    ("human", """Settimana del {date}.
+Style: authoritative, precise, accessible."""),
+    ("human", """Week of {date}.
 
-NOTIZIE RACCOLTE:
+ARTICLES COLLECTED:
 {articles}
 
-PAPER SCIENTIFICI NEL DATABASE:
+SCIENTIFIC PAPERS IN DATABASE:
 {papers}
 
-Genera la digest settimanale in italiano:""")
+Generate the weekly digest in English:""")
+])
+
+RANKING_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are an expert environmental editor.
+Analyze these articles and return ONLY valid JSON, no additional text.
+
+JSON structure:
+[
+  {{
+    "index": 0,
+    "importance": 9,
+    "comment": "Brief comment in English, max 20 words"
+  }}
+]
+
+Importance criteria (1-10):
+- Global or European impact → high score
+- Authoritative source (UN, IPCC, governments) → high score
+- Recent and relevant news → high score
+- Low quality source or generic news → low score"""),
+    ("human", """Rank these articles by importance:
+
+{articles}
+
+Return ONLY the JSON, no text before or after:""")
 ])
 
 
 def generate_weekly_digest() -> str:
-    """Genera la digest settimanale e la invia via email."""
     print("\n╔══════════════════════════════════════╗")
     print("║     🌱 EcoWatch Weekly Digest        ║")
     print("╚══════════════════════════════════════╝")
 
-    # 1. Cerca notizie
-    print("\n🔍 Cerco notizie della settimana...")
+    print("\n🔍 Searching for news...")
     articles = _search_news()
-    print(f"  ✓ Trovati {len(articles)} articoli")
+    print(f"  ✓ Found {len(articles)} articles")
 
-    # 2. Recupera paper dal database
-    print("\n📚 Recupero paper scientifici...")
+    print("\n📊 Ranking articles by importance...")
+    ranked_articles = _rank_articles(articles)
+    print(f"  ✓ Ranked {len(ranked_articles)} articles")
+
+    print("\n📚 Retrieving scientific papers...")
     papers = _get_papers()
-    print(f"  ✓ {len(papers)} paper nel database")
+    print(f"  ✓ {len(papers)} papers in database")
 
-    # 3. Genera il contenuto
-    print("\n✍️  Genero la digest...")
+    print("\n✍️  Generating digest...")
     content = _generate_content(articles, papers)
 
-    # 4. Genera HTML
-    html = _generate_html(content, articles)
+    html = _generate_html(content, ranked_articles)
 
-    # 5. Invia email
     from tools.email_sender import send_email
     date = datetime.now().strftime("%d %B %Y")
     send_email(
@@ -88,7 +109,6 @@ def generate_weekly_digest() -> str:
 
 
 def _search_news() -> list:
-    """Cerca notizie della settimana con Tavily."""
     client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     articles = []
     seen_urls = set()
@@ -106,20 +126,58 @@ def _search_news() -> list:
                         "source": r["url"].split("/")[2],
                     })
         except Exception as e:
-            print(f"  ✗ Errore query '{query}': {e}")
+            print(f"  ✗ Error query '{query}': {e}")
 
     return articles
 
 
+def _rank_articles(articles: list) -> list:
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        temperature=0.1,
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+
+    articles_text = "\n".join([
+        f"[{i}] {a['title']} ({a['source']}): {a['content'][:150]}"
+        for i, a in enumerate(articles)
+    ])
+
+    try:
+        chain = RANKING_PROMPT | llm
+        response = chain.invoke({"articles": articles_text})
+
+        text = response.content.strip()
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+
+        rankings = json.loads(text)
+
+        ranked = []
+        for r in rankings:
+            idx = r.get("index", 0)
+            if idx < len(articles):
+                article = articles[idx].copy()
+                article["importance"] = r.get("importance", 5)
+                article["comment"] = r.get("comment", "")
+                ranked.append(article)
+
+        ranked.sort(key=lambda x: x["importance"], reverse=True)
+        return ranked[:10]
+
+    except Exception as e:
+        print(f"  ✗ Ranking error: {e}")
+        return articles[:10]
+
+
 def _get_papers() -> list:
-    """Recupera i paper dal database ChromaDB."""
     try:
         client = chromadb.PersistentClient(path="./database")
         collection = client.get_or_create_collection(name="scientific_papers")
-        
         if collection.count() == 0:
             return []
-
         results = collection.get(limit=10, include=["metadatas"])
         return [
             f"{m.get('title', '')} ({m.get('year', '')}) — {m.get('authors', '')}"
@@ -130,7 +188,6 @@ def _get_papers() -> list:
 
 
 def _generate_content(articles: list, papers: list) -> str:
-    """Genera il testo della digest con Groq."""
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0.3,
@@ -142,7 +199,7 @@ def _generate_content(articles: list, papers: list) -> str:
         for a in articles
     ])
 
-    papers_text = "\n".join([f"- {p}" for p in papers]) or "Nessun paper disponibile."
+    papers_text = "\n".join([f"- {p}" for p in papers]) or "No papers available."
 
     chain = PROMPT | llm
     response = chain.invoke({
@@ -154,8 +211,7 @@ def _generate_content(articles: list, papers: list) -> str:
     return response.content
 
 
-def _generate_html(content: str, articles: list) -> str:
-    """Genera l'HTML della newsletter settimanale."""
+def _generate_html(content: str, ranked_articles: list) -> str:
     date = datetime.now().strftime("%d %B %Y")
 
     # Converti markdown in HTML
@@ -170,14 +226,35 @@ def _generate_html(content: str, articles: list) -> str:
         else:
             html_content += f'<p>{line}</p>\n'
 
-    # Lista fonti
-    sources_html = "\n".join([
-        f'<li><a href="{a["url"]}" style="color:#40916c;">{a["title"]}</a> — {a["source"]}</li>'
-        for a in articles[:5]
-    ])
+    # Badge colore per importanza
+    def importance_color(score):
+        if score >= 8:
+            return "#2d6a4f"
+        elif score >= 6:
+            return "#e9a010"
+        else:
+            return "#adb5bd"
+
+    # Top 10 articoli con badge e commento
+    articles_html = ""
+    for i, a in enumerate(ranked_articles, 1):
+        score = a.get("importance", 5)
+        comment = a.get("comment", "")
+        color = importance_color(score)
+
+        articles_html += f"""
+        <div style="border-left:3px solid {color}; padding:12px 16px; margin-bottom:16px; background:#f8f9fa; border-radius:0 6px 6px 0;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <span style="background:{color}; color:white; font-size:11px; font-family:Arial; padding:2px 8px; border-radius:10px; font-weight:bold;">#{i} — {score}/10</span>
+            <a href="{a['url']}" style="color:#1b4332; font-size:14px; font-family:Arial; font-weight:bold; text-decoration:none;">{a['title']}</a>
+          </div>
+          <div style="font-size:12px; color:#868e96; font-family:Arial; margin-bottom:4px;">{a['source']}</div>
+          <div style="font-size:13px; color:#495057; font-family:Arial; font-style:italic;">{comment}</div>
+        </div>
+        """
 
     return f"""<!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -199,8 +276,6 @@ def _generate_html(content: str, articles: list) -> str:
     .section-title:first-child {{ margin-top: 0; }}
     p {{ line-height: 1.8; margin-bottom: 12px; font-size: 16px; }}
     li {{ line-height: 1.8; margin-bottom: 8px; margin-left: 20px; font-size: 15px; }}
-    .sources {{ background: #f8f9fa; border-radius: 8px; padding: 24px; margin-top: 32px; }}
-    .sources h3 {{ color: #1b4332; margin-bottom: 12px; font-size: 16px; }}
     .footer {{ background: #f8f9fa; border-top: 1px solid #e9ecef; padding: 24px 48px; text-align: center; }}
     .footer p {{ color: #868e96; font-size: 13px; font-family: Arial, sans-serif; line-height: 1.6; }}
   </style>
@@ -210,37 +285,29 @@ def _generate_html(content: str, articles: list) -> str:
     <div class="header">
       <div class="logo">🌱</div>
       <h1>EcoWatch Weekly</h1>
-      <div class="subtitle">Intelligence Ambientale</div>
+      <div class="subtitle">Environmental Intelligence</div>
       <div class="date">{date}</div>
     </div>
 
     <div class="stats-bar">
-      <div class="stat">
-        <span>{len(articles)}</span>
-        Fonti analizzate
-      </div>
-      <div class="stat">
-        <span>3</span>
-        Sezioni tematiche
-      </div>
-      <div class="stat">
-        <span>1</span>
-        Volta a settimana
-      </div>
+      <div class="stat"><span>{len(ranked_articles)}</span>Articles analyzed</div>
+      <div class="stat"><span>3</span>Thematic sections</div>
+      <div class="stat"><span>1</span>Time per week</div>
     </div>
 
     <div class="content">
       {html_content}
 
-      <div class="sources">
-        <h3>📎 Fonti principali</h3>
-        <ul>{sources_html}</ul>
-      </div>
+      <h2 class="section-title">📎 Top Articles This Week</h2>
+      <p style="font-size:13px; color:#868e96; font-family:Arial; margin-bottom:20px;">
+        Ranked by importance — click the title to read the full article
+      </p>
+      {articles_html}
     </div>
 
     <div class="footer">
-      <p>🌱 <strong>EcoWatch Weekly</strong> — Intelligence ambientale settimanale<br>
-      Generato con LangGraph + Groq + ChromaDB + Tavily<br>
+      <p>🌱 <strong>EcoWatch Weekly</strong> — Environmental Intelligence<br>
+      Powered by LangGraph + Groq + ChromaDB + Tavily<br>
       {date}</p>
     </div>
   </div>
