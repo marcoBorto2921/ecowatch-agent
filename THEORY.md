@@ -1,4 +1,4 @@
-# 📚 Theory — How EcoWatch Agent Works
+# Theory — How EcoWatch Agent Works
 
 This guide explains the theoretical concepts behind EcoWatch Agent.
 Each concept is connected to how it is used in the project.
